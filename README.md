@@ -1,2 +1,2 @@
 # dev-env-build
-开发环境搭建，比如mongo，redis
+各种开发环境搭建笔记，比如mongo，redis

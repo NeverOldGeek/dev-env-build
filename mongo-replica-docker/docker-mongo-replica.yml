@@ -1,0 +1,94 @@
+version: "3.8"
+# 数据卷所挂载路径设置。可以设置为宿主机路径(HOST:CONTAINER)或者数据卷名称(VOLUME:CONTAINER)，并且可以设置访问模式 （HOST:CONTAINER:ro
+volumes:
+  mongo-db-keys:
+networks:
+  mongo-replica-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.100.1.0/24
+services:
+  mongo-keys:
+    container_name: mongo-keys
+    image: depop/openssl-bats
+    # 如果路径为数据卷名称，必须在文件中配置数据卷
+    volumes:
+      - mongo-db-keys:/tmp
+    command: 'bash -c "openssl rand -base64 741 > /tmp/mongodb-keyfile; chmod 600 /tmp/mongodb-keyfile; chown 999 /tmp/mongodb-keyfile"'
+# Node 1
+  mongo1:
+    # 容器设置主机名
+    hostname: mongo1
+    container_name: mongo1
+    image: mongo:4.4
+    restart: always
+    #映射域名和ip
+    extra_hosts:
+      - "mongo1host:172.100.1.10"
+      - "mongo2host:172.100.1.11"
+      - "mongo3host:172.100.1.12"
+    volumes:
+      - mongo-db-keys:/opt/keyfile
+      - ./mongo/data1/db:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=example
+    ports:
+      - '27017:27017'
+    # --bind_ip_all 允许所有ip连接；--port 27017 指定mongodb监听端口
+    command: 'mongod --auth --keyFile /opt/keyfile/mongodb-keyfile --bind_ip_all --replSet rs0 --port 27017'
+    depends_on:
+        - mongo-keys
+    networks:
+      mongo-replica-net:
+         ipv4_address: 172.100.1.10
+# Node 2
+  mongo2:
+    hostname: mongo2
+    container_name: mongo2
+    image: mongo:4.4
+    restart: always
+    extra_hosts:
+      - "mongo1host:172.100.1.10"
+      - "mongo2host:172.100.1.11"
+      - "mongo3host:172.100.1.12"
+    volumes:
+      - mongo-db-keys:/opt/keyfile
+      - ./mongo/data2/db:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=example
+    ports:
+      - '27018:27018'
+    command: 'mongod --auth --keyFile /opt/keyfile/mongodb-keyfile --bind_ip_all --replSet rs0 --port 27018'
+    depends_on:
+        - mongo-keys
+    networks:
+      mongo-replica-net:
+         ipv4_address: 172.100.1.11
+# Node 3
+  mongo3:
+    hostname: mongo3
+    container_name: mongo3
+    restart: always
+    image: mongo:4.4
+    extra_hosts:
+      - "mongo1host:172.100.1.10"
+      - "mongo2host:172.100.1.11"
+      - "mongo3host:172.100.1.12"
+    volumes:
+      - mongo-db-keys:/opt/keyfile
+      - ./mongo/data3/db:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=example
+    ports:
+      - '27019:27019'
+    command: 'mongod --auth --keyFile /opt/keyfile/mongodb-keyfile --bind_ip_all --replSet rs0 --port 27019'
+    depends_on:
+        - mongo-keys
+    networks:
+      mongo-replica-net:
+         ipv4_address: 172.100.1.12
